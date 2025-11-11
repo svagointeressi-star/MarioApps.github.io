@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple HTML Editor & Export</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#7c3aed}
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:#e6eef8;background:linear-gradient(180deg,#071029 0%, #081226 100%)}
+    .app{max-width:1100px;margin:32px auto;padding:20px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    h1{font-size:18px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type=text]{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted);min-width:160px}
+    button{padding:9px 12px;border-radius:10px;border:0;background:var(--accent);color:white;font-weight:600;cursor:pointer}
+    button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .main{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .panel{background:rgba(10,14,20,0.6);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);min-height:420px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    textarea{width:100%;height:100%;min-height:360px;padding:10px;background:transparent;color:#e8f0ff;border:1px dashed rgba(255,255,255,0.04);resize:vertical;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;font-size:13px}
+    iframe{width:100%;height:100%;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:white}
+    footer{margin-top:12px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+    .hint{opacity:0.9}
+    @media(max-width:900px){.main{grid-template-columns:1fr;}.app{margin:12px}}
+  </style>
+</head>
+<body>
+  <div class="app" role="application">
+    <header>
+      <h1>Editor HTML semplice — salva come <code>.html</code></h1>
+      <div class="controls">
+        <label for="filename" style="display:none">Nome file</label>
+        <input id="filename" type="text" value="index.html" aria-label="Nome file" />
+        <button id="saveBtn">Salva .html</button>
+        <button id="previewBtn" class="secondary">Aggiorna anteprima</button>
+      </div>
+    </header>
+
+    <div class="main">
+      <section class="panel" aria-label="Editor panel">
+        <label for="editor">Editor (incolla qui il tuo HTML o testo)</label>
+        <textarea id="editor" placeholder="Incolla o scrivi qui il contenuto HTML..." spellcheck="false"></textarea>
+      </section>
+
+      <section class="panel" aria-label="Preview panel">
+        <label>Anteprima</label>
+        <iframe id="preview" title="Anteprima contenuto"></iframe>
+      </section>
+    </div>
+
+    <footer>
+      <div class="hint">Scorciatoia: <strong>Ctrl/Cmd + S</strong> per salvare. Incolla -> clicca Salva o usa la scorciatoia.</div>
+      <div class="hint">Download generato localmente nel browser; nessun dato inviato su server.</div>
+    </footer>
+  </div>
+
+  <script>
+    const editor = document.getElementById('editor');
+    const preview = document.getElementById('preview');
+    const saveBtn = document.getElementById('saveBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const filenameInput = document.getElementById('filename');
+
+    function updatePreview(){
+      const doc = preview.contentWindow.document;
+      doc.open();
+      doc.write(editor.value);
+      doc.close();
+    }
+
+    function downloadHTML(){
+      let filename = filenameInput.value.trim() || 'index.html';
+      // ensure .html extension
+      if(!/\.html?$/.test(filename)) filename += '.html';
+      const blob = new Blob([editor.value], {type: 'text/html;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // Events
+    saveBtn.addEventListener('click', () => {
+      downloadHTML();
+    });
+
+    previewBtn.addEventListener('click', updatePreview);
+
+    // Update preview on typing with debounce
+    let timeout;
+    editor.addEventListener('input', () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(updatePreview, 400);
+    });
+
+    // Paste helper: when user pastes, place the content and update preview
+    editor.addEventListener('paste', (e) => {
+      // let default paste happen then update preview shortly after
+      setTimeout(updatePreview, 50);
+    });
+
+    // Keyboard shortcut: Ctrl/Cmd + S to save
+    window.addEventListener('keydown', (e) => {
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){
+        e.preventDefault();
+        downloadHTML();
+      }
+    });
+
+    // Initialize with a small sample
+    editor.value = `<!doctype html>\n<html>\n  <head>\n    <meta charset="utf-8">\n    <title>Pagina salvata</title>\n  </head>\n  <body>\n    <h1>Ciao — questa è una pagina HTML salvata da webapp</h1>\n    <p>Sostituisci questo contenuto con il tuo.</p>\n  </body>\n</html>`;
+    updatePreview();
+  </script>
+</body>
+</html>

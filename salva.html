@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semplice Editor di Testo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        textarea {
+            width: 100%;
+            height: 400px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📝 Editor di Testo Semplice</h1>
+    <textarea id="textEditor" placeholder="Incolla o digita il tuo testo qui..."></textarea>
+    <button onclick="saveText()">Salva File</button>
+
+    <script>
+        function saveText() {
+            const textContent = document.getElementById('textEditor').value;
+            const isHtml = isHtmlContent(textContent);
+            
+            // Determina il nome e l'estensione del file
+            let filename = "documento";
+            let extension = isHtml ? ".html" : ".txt";
+            
+            // Crea il "blob" di dati con il contenuto e il tipo MIME
+            const mimeType = isHtml ? 'text/html' : 'text/plain';
+            const blob = new Blob([textContent], { type: mimeType });
+            
+            // Crea un link di download invisibile
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename + extension;
+
+            // Simula il click sul link per avviare il download
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Rilascia l'oggetto URL
+            URL.revokeObjectURL(a.href);
+
+            alert(`Testo salvato come "${filename + extension}"!`);
+        }
+
+        /**
+         * Funzione per riconoscere se il contenuto è probabilmente HTML.
+         * Cerca la presenza di tag HTML comuni all'inizio del testo.
+         */
+        function isHtmlContent(text) {
+            if (!text || text.trim().length < 5) {
+                return false; // Troppo corto per essere HTML significativo
+            }
+            
+            const trimmedText = text.trim().toLowerCase();
+            
+            // Controlla la presenza di tag HTML di base all'inizio
+            return trimmedText.startsWith('<!doctype html') || 
+                   trimmedText.includes('<html') || 
+                   trimmedText.includes('<body') || 
+                   trimmedText.includes('<p>') ||
+                   trimmedText.includes('<div') ||
+                   trimmedText.includes('<a ');
+        }
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convertitore Articolo per Stampa</title>
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Libreria Readability.js di Mozilla -->
+    <script src="https://cdn.jsdelivr.net/npm/@mozilla/readability@0.5.0/Readability.min.js"></script>
+    
+    <style>
+        /* Impostazioni di base e font Inter per l'UI (non per l'editor) */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Stile per l'editor che simula un foglio A4 con margini */
+        @media screen {
+            #editor-wrapper {
+                background-color: #e2e8f0; /* bg-gray-300 */
+                padding: 2rem;
+                overflow-x: auto;
+            }
+            
+            #editor-content {
+                /* Dimensioni A4: 21cm x 29.7cm */
+                width: 21cm;
+                min-height: 29.7cm;
+                
+                /* Margini di 2.5cm (padding) */
+                padding: 2.5cm;
+                
+                /* Stile pagina */
+                background-color: #ffffff;
+                margin: 1rem auto;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                box-sizing: border-box;
+                
+                /* FORZATURA FONT E COLORI COME RICHIESTO */
+                font-family: Arial, sans-serif !important;
+                color: #000000 !important;
+                background: #ffffff !important;
+                outline: none; /* Rimuove il bordo al focus */
+            }
+        }
+        
+        /* Stili per il contenuto *DENTRO* l'editor */
+        #editor-content * {
+            color: #000000 !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            border-color: #000000 !important;
+            font-family: Arial, sans-serif !important;
+        }
+
+        #editor-content h1,
+        #editor-content h2,
+        #editor-content h3,
+        #editor-content h4,
+        #editor-content h5,
+        #editor-content h6 {
+            font-weight: bold;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        /* Applica le dimensioni font dagli slider (via CSS variables) */
+        #editor-content h1 {
+            font-size: var(--title-size, 24pt);
+        }
+        
+        #editor-content h2, #editor-content h3 {
+            font-size: var(--subtitle-size, 18pt);
+        }
+
+        #editor-content p, 
+        #editor-content li, 
+        #editor-content span, 
+        #editor-content div {
+            font-size: var(--body-size, 12pt);
+            line-height: 1.5;
+        }
+        
+        #editor-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 1em;
+            margin-bottom: 1em;
+        }
+        
+        #editor-content th, 
+        #editor-content td {
+            border: 1px solid #000000;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #editor-content a {
+            color: #000000 !important;
+            text-decoration: underline;
+        }
+        
+        #editor-content b, 
+        #editor-content strong {
+            font-weight: bold;
+        }
+        
+        #editor-content i, 
+        #editor-content em {
+            font-style: italic;
+        }
+
+        /* Nasconde media non stampabili */
+        #editor-content img,
+        #editor-content svg,
+        #editor-content video,
+        #editor-content iframe {
+            display: none;
+        }
+
+        /* Stili per la stampa: il wrapper scompare, resta solo il contenuto */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+            .no-print {
+                display: none;
+            }
+            #editor-wrapper {
+                background-color: transparent;
+                padding: 0;
+                box-shadow: none;
+            }
+            #editor-content {
+                width: 100%;
+                min-height: auto;
+                padding: 0;
+                margin: 0;
+                box-shadow: none;
+                border: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- Messaggio di notifica (nascosto) -->
+    <div id="toast" class="no-print fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-lg z-50 transition-opacity duration-300 opacity-0">
+        Testo copiato!
+    </div>
+    
+    <!-- Spinner di caricamento (nascosto) -->
+    <div id="loading" class="no-print hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
+        <svg class="animate-spin h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8 no-print">
+        <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-6">Convertitore Articolo per Stampa</h1>
+        
+        <!-- Sezione Controlli URL -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <label for="url-input" class="block text-sm font-medium text-gray-700 mb-2">Inserisci il link all'articolo:</label>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="url" id="url-input" placeholder="https://www.esempio.com/articolo..." class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button id="extract-button" class="w-full sm:w-auto bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors">
+                    Estrai Articolo
+                </button>
+            </div>
+        </div>
+
+        <!-- Sezione Impostazioni Font -->
+        <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Impostazioni Font (pt)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Titolo -->
+                <div>
+                    <label for="title-size" class="block text-sm font-medium text-gray-700">Dimensione Titolo (h1)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="title-size" name="title" min="18" max="48" value="24" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="title-size-value" class="w-10 text-right text-sm text-gray-600">24pt</span>
+                    </div>
+                </div>
+                <!-- Sottotitolo -->
+                <div>
+                    <label for="subtitle-size" class="block text-sm font-medium text-gray-700">Dimensione Sottotitolo (h2, h3)</label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="subtitle-size" name="subtitle" min="14" max="36" value="18" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="subtitle-size-value" class="w-10 text-right text-sm text-gray-600">18pt</span>
+                    </div>
+                </div>
+                <!-- Corpo -->
+                <div>
+                    <label for="body-size" class="block text-sm font-medium text-gray-700">Dimensione Corpo Testo</label>
+                    <div class="flex items-center gap-2">
+                        <input type="range" id="body-size" name="body" min="9" max="20" value="12" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="body-size-value" class="w-10 text-right text-sm text-gray-600">12pt</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sezione Editor -->
+    <div class="relative">
+        <!-- Bottone Copia e Stampa -->
+        <div class="no-print sticky top-0 z-10 bg-gray-100 py-2 px-4 flex justify-end gap-2 max-w-[21cm] mx-auto">
+             <button id="copy-button" class="bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700 transition-colors text-sm">
+                Copia Testo
+            </button>
+            <button onclick="window.print()" class="bg-gray-700 text-white px-4 py-2 rounded-md font-medium hover:bg-gray-800 transition-colors text-sm">
+                Stampa
+            </button>
+        </div>
+
+        <!-- Wrapper Editor (sfondo grigio) -->
+        <div id="editor-wrapper">
+            <!-- Pagina A4 editabile -->
+            <div id="editor-content" contenteditable="true" spellcheck="false" lang="it">
+                <h1 style="font-size: 24pt;">Benvenuto!</h1>
+                <p style="font-size: 12pt;">Inserisci un link nel campo qui sopra e clicca "Estrai Articolo" per iniziare, oppure <b>incolla direttamente l'HTML di un articolo qui per formattarlo.</b></p>
+                <p style="font-size: 12pt;">Il contenuto dell'articolo apparirà qui, formattato in Arial, senza colori e pronto per essere modificato, copiato o stampato.</p>
+                <p style="font-size: 12pt;">Usa i cursori per regolare le dimensioni dei caratteri prima o dopo l'estrazione.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('url-input');
+            const extractButton = document.getElementById('extract-button');
+            const copyButton = document.getElementById('copy-button');
+            const editor = document.getElementById('editor-content');
+            const loading = document.getElementById('loading');
+            const toast = document.getElementById('toast');
+            
+            const titleSlider = document.getElementById('title-size');
+            const subtitleSlider = document.getElementById('subtitle-size');
+            const bodySlider = document.getElementById('body-size');
+            
+            const titleValue = document.getElementById('title-size-value');
+            const subtitleValue = document.getElementById('subtitle-size-value');
+            const bodyValue = document.getElementById('body-size-value');
+            
+            const root = document.documentElement;
+
+            // Funzione per aggiornare le variabili CSS dei font
+            function updateFontSize(e) {
+                const value = e.target.value;
+                const name = e.target.name;
+                const unit = 'pt';
+                
+                // Aggiorna la variabile CSS
+                root.style.setProperty(`--${name}-size`, value + unit);
+                
+                // Aggiorna l'etichetta del valore
+                if (name === 'title') titleValue.textContent = value + unit;
+                if (name === 'subtitle') subtitleValue.textContent = value + unit;
+                if (name === 'body') bodyValue.textContent = value + unit;
+            }
+
+            // Inizializza i valori al caricamento
+            function initFontSizes() {
+                root.style.setProperty('--title-size', titleSlider.value + 'pt');
+                root.style.setProperty('--subtitle-size', subtitleSlider.value + 'pt');
+                root.style.setProperty('--body-size', bodySlider.value + 'pt');
+            }
+            
+            // Aggiungi event listener ai slider
+            [titleSlider, subtitleSlider, bodySlider].forEach(slider => {
+                slider.addEventListener('input', updateFontSize);
+            });
+            
+            // Inizializza i font
+            initFontSizes();
+
+            // Funzione per mostrare notifiche
+            function showToast(message, isError = false) {
+                toast.textContent = message;
+                toast.classList.toggle('bg-green-500', !isError);
+                toast.classList.toggle('bg-red-500', isError);
+                toast.classList.remove('opacity-0');
+                
+                setTimeout(() => {
+                    toast.classList.add('opacity-0');
+                }, 3000);
+            }
+            
+            /**
+             * Elabora l'HTML (ottenuto da fetch o incolla) con Readability e lo inserisce nell'editor.
+             * @param {string} htmlContent - Il contenuto HTML da elaborare.
+             */
+            function processContent(htmlContent) {
+                if (!htmlContent) {
+                    editor.innerHTML = '<p>Nessun contenuto da elaborare.</p>';
+                    return;
+                }
+
+                try {
+                    // Crea un documento DOM virtuale per il parsing
+                    const doc = new DOMParser().parseFromString(htmlContent, 'text/html');
+                    
+                    // Usa Readability.js per estrarre l'articolo
+                    const reader = new Readability(doc);
+                    const article = reader.parse();
+
+                    if (article && article.content) {
+                        // Inserisci il titolo dell'articolo e poi il contenuto pulito
+                        editor.innerHTML = `<h1>${article.title || "Contenuto Elaborato"}</h1>${article.content}`;
+                        showToast('Contenuto estratto e formattato con successo!');
+                    } else {
+                        // Fallback per contenuti non riconosciuti come articoli (es. frammenti)
+                        editor.innerHTML = htmlContent;
+                        showToast('Contenuto inserito. Readability non ha trovato il corpo principale.', true);
+                    }
+
+                } catch (error) {
+                    console.error('Errore durante l\'elaborazione dell\'HTML:', error);
+                    editor.innerHTML = `<p>Si è verificato un errore durante l\'elaborazione: ${error.message}</p>`;
+                }
+            }
+
+            // Gestore per il pulsante "Estrai Articolo"
+            extractButton.addEventListener('click', async () => {
+                const url = urlInput.value;
+                if (!url) {
+                    showToast('Per favore, inserisci un URL valido.', true);
+                    return;
+                }
+
+                loading.classList.remove('hidden');
+                editor.innerHTML = '<p>Estrazione in corso...</p>';
+
+                // Usiamo un proxy CORS (allorigins.win) per recuperare l'HTML
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+
+                try {
+                    const response = await fetch(proxyUrl);
+                    if (!response.ok) {
+                        throw new Error(`Errore di rete: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (!data.contents) {
+                        throw new Error('Impossibile recuperare il contenuto dalla pagina.');
+                    }
+
+                    // Aggiunge l'URL di base per risolvere potenziali link relativi
+                    const contentWithBase = `<base href="${url}">${data.contents}`;
+
+                    // Elabora il contenuto HTML
+                    processContent(contentWithBase);
+
+                } catch (error) {
+                    console.error('Errore durante l\'estrazione:', error);
+                    editor.innerHTML = `<p>Si è verificato un errore: ${error.message}. Il sito potrebbe bloccare i proxy o il link non è valido.</p>`;
+                } finally {
+                    loading.classList.add('hidden');
+                }
+            });
+
+            // Gestore per l'evento "paste"
+            editor.addEventListener('paste', (e) => {
+                e.preventDefault(); // Impedisce l'azione di incolla predefinita
+                loading.classList.remove('hidden');
+
+                const html = e.clipboardData.getData('text/html');
+                const text = e.clipboardData.getData('text/plain');
+
+                if (html) {
+                    // Elabora l'HTML incollato
+                    processContent(html);
+                } else if (text) {
+                    // Se solo testo normale, lo inserisce (sarà formattato dal CSS)
+                    document.execCommand('insertText', false, text);
+                    showToast('Testo normale incollato e formattato.');
+                }
+                
+                loading.classList.add('hidden');
+            });
+
+            // Gestore per il pulsante "Copia"
+            copyButton.addEventListener('click', () => {
+                try {
+                    // Crea un range e seleziona tutto il contenuto dell'editor
+                    const range = document.createRange();
+                    range.selectNodeContents(editor);
+                    
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    
+                    // Esegui il comando di copia
+                    // Questo copia il testo formattato (rich text) grazie alla selezione su contenteditable.
+                    if (document.execCommand('copy')) {
+                         showToast('Testo copiato negli appunti (con formattazione)!');
+                    } else {
+                        // Fallback per browser moderni se execCommand fallisce
+                        navigator.clipboard.writeText(editor.innerText).then(() => {
+                            showToast('Copia fallback: copiato solo testo semplice.', true);
+                        }).catch(err => {
+                            showToast('Copia fallita. Prova a copiare il testo manualmente.', true);
+                        });
+                    }
+                    
+                    // Deseleziona il testo
+                    selection.removeAllRanges();
+
+                } catch (err) {
+                    console.error('Errore durante la copia:', err);
+                    showToast('Copia fallita. Prova a copiare il testo manualmente.', true);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
